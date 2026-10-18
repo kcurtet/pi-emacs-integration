@@ -1,0 +1,27 @@
+{
+	"name": "@kcurtet/pi-emacs-integration",
+	"version": "0.2.0",
+	"description": "Emacs bridge for the pi coding agent: clickable file chips in the chat, /emacs, /changes, alt+e",
+	"private": false,
+	"keywords": ["pi-package"],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/kcurtet/pi-emacs-integration.git"
+	},
+	"pi": {
+		"extensions": ["./index.ts"]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
+	},
+	"scripts": {
+		"test": "node --test",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"typescript": "^5.0.0",
+		"@types/node": "^22.0.0"
+	}
+}
