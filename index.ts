@@ -22,6 +22,7 @@ import {
 	fuzzyMatch,
 	isNoise,
 	lineFor,
+	shouldOpenInEmacs,
 	type FileLink,
 	type LinkConfig,
 } from "./core.ts";
@@ -284,9 +285,16 @@ class LinksBar extends Container {
 		if (!spans) return undefined;
 		const span = spans.find((s) => event.x >= s.start && event.x < s.end);
 		if (!span) return undefined;
-		void openInEmacs(span.file.path, span.file.line, span.file.col).then((ok) => {
-			if (!ok) this.onFail("emacsclient falló — ¿daemon de Emacs caído?");
-		});
+		const f = span.file;
+		if (shouldOpenInEmacs(f.path)) {
+			void openInEmacs(f.path, f.line, f.col).then((ok) => {
+				if (!ok) this.onFail("emacsclient falló — ¿daemon de Emacs caído?");
+			});
+		} else {
+			const child = spawn("xdg-open", [f.path], { detached: true, stdio: "ignore" });
+			child.on("error", () => this.onFail("xdg-open falló al abrir"));
+			child.unref();
+		}
 		return { handled: true } as ReturnType<Container["handleMouse"]>;
 	}
 }
