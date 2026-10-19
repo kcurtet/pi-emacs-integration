@@ -234,9 +234,10 @@ child.on("close", (code: number | null) => res(code === 0));
 }
 
 class LinksBar extends Container {
-	// HStack compone todos los chips en la misma fila y Container.handleMouse
-	// despacha solo por fila: sin esto, el primer chip se traga todos los clicks.
-	private readonly spans: { start: number; end: number; file: FileLink }[] = [];
+	// HStack compone varios chips en la misma fila y Container.handleMouse
+	// despacha solo por fila: sin spans por x, el primer chip se traga todos los clicks.
+	// Con >2 archivos se apila un chip por línea (dispatch por fila nativo).
+	private readonly rows: { start: number; end: number; file: FileLink }[][] = [];
 
 	constructor(
 		files: FileLink[],
@@ -246,30 +247,42 @@ class LinksBar extends Container {
 		super();
 		if (files.length === 0) return;
 		const GAP = 1;
-		const chips: Component[] = [];
-		let x = 0;
-		for (const f of files) {
-			const shown = displayPath(f.path, cwdGlobal);
-			const text = f.line ? `${shown}:${f.line}` : shown;
-			const plain = `[open - ${text}]`;
-			this.spans.push({ start: x, end: x + plain.length, file: f });
-			chips.push(
-				new Text(
-					theme.fg("muted", "[open - ") +
-						theme.style(text, { fg: { kind: "rgb", r: 110, g: 168, b: 254 }, underline: true }) +
-						theme.fg("muted", "]"),
-					0,
-					0,
-				),
-			);
-			x += plain.length + GAP;
+		const stack = files.length > 2;
+		// una "fila lógica" por chip si apilado; todos juntos si inline
+		const groups: FileLink[][] = stack ? files.map((f) => [f]) : [files];
+		for (const group of groups) {
+			const chips: Component[] = [];
+			const spans: { start: number; end: number; file: FileLink }[] = [];
+			let x = 0;
+			for (const f of group) {
+				const shown = displayPath(f.path, cwdGlobal);
+				const text = f.line ? `${shown}:${f.line}` : shown;
+				const plain = `[open - ${text}]`;
+				spans.push({ start: x, end: x + plain.length, file: f });
+				chips.push(
+					new Text(
+						theme.fg("muted", "[open - ") +
+							theme.style(text, {
+								fg: { kind: "rgb", r: 110, g: 168, b: 254 },
+								underline: true,
+							}) +
+							theme.fg("muted", "]"),
+						0,
+						0,
+					),
+				);
+				x += plain.length + GAP;
+			}
+			this.rows.push(spans);
+			this.addChild(new HStack(chips, { gap: GAP }));
 		}
-		this.addChild(new HStack(chips, { gap: GAP }));
 	}
 
 	handleMouse(event: TuiMouseEvent): ReturnType<Container["handleMouse"]> {
 		if (event.type !== "click" || event.button !== "left") return undefined;
-		const span = this.spans.find((s) => event.x >= s.start && event.x < s.end);
+		const spans = this.rows[Math.min(event.y, this.rows.length - 1)];
+		if (!spans) return undefined;
+		const span = spans.find((s) => event.x >= s.start && event.x < s.end);
 		if (!span) return undefined;
 		void openInEmacs(span.file.path, span.file.line, span.file.col).then((ok) => {
 			if (!ok) this.onFail("emacsclient falló — ¿daemon de Emacs caído?");
