@@ -83,12 +83,12 @@ export function lineFor(pathname: string, text: string): { line?: number; col?: 
 	return paren ? { line: Number(paren[1]), col: paren[2] ? Number(paren[2]) : undefined } : {};
 }
 
-/** Ruta para mostrar: relativa a cwd si está dentro, ~ si está en home, absoluta si no. */
+/** Ruta para mostrar: relativa a cwd si está dentro; si no, últimos 2 segmentos. */
 export function displayPath(pathname: string, cwd: string): string {
-	const home = homedir();
 	if (cwd && pathname.startsWith(`${cwd}/`)) return pathname.slice(cwd.length + 1);
-	if (pathname.startsWith(home)) return `~${pathname.slice(home.length)}`;
-	return pathname;
+	const segs = pathname.split("/").filter(Boolean);
+	if (segs.length <= 2) return pathname;
+	return segs.slice(-2).join("/");
 }
 
 /** Argumentos emacsclient para abrir archivo en línea/columna. */
