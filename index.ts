@@ -23,6 +23,7 @@ import {
 	isNoise,
 	lineFor,
 	shouldOpenInEmacs,
+	TEXT_EXTS,
 	type FileLink,
 	type LinkConfig,
 } from "./core.ts";
@@ -32,13 +33,46 @@ const BUFFER = "*pi-changes*";
 const STATE_ENTRY = "emacs-integration:files";
 const LINK_ENTRY = "emacs-integration:link";
 
+interface UserConfig {
+	maxLinks?: number;
+	/** Extensiones permitidas para chips (vacío = todas). */
+	extensions?: string[];
+	/** Prefijos extra a ignorar. */
+	noise?: string[];
+	/** Reemplaza la lista de extensiones que se abren en Emacs (resto → opener externo). */
+	textExts?: string[];
+	/** Comando para abrir archivos no-texto (default xdg-open). */
+	externalOpener?: string;
+}
+
+let userConfig: UserConfig = {};
+
+function loadUserConfig(): void {
+	try {
+		const file = join(homedir(), ".pi", "agent", "extensions-config", "emacs-integration.json");
+		userConfig = JSON.parse(readFileSync(file, "utf8")) as UserConfig;
+	} catch {
+		userConfig = {}; // sin config o JSON roto → defaults
+	}
+}
+
+function textExts(): Set<string> {
+	return userConfig.textExts ? new Set(userConfig.textExts.map((e) => e.toLowerCase())) : TEXT_EXTS;
+}
+
+function externalOpener(): string {
+	return process.env.PI_EMACS_OPENER ?? userConfig.externalOpener ?? "xdg-open";
+}
+
 function linkConfig(): LinkConfig {
 	const csv = (v: string | undefined) =>
 		v ? v.split(",").map((s) => s.trim()).filter(Boolean) : [];
+	const envExts = csv(process.env.PI_EMACS_EXTS);
+	const envNoise = csv(process.env.PI_EMACS_NOISE);
 	return {
-		maxLinks: Number(process.env.PI_EMACS_MAX_LINKS ?? 8) || 8,
-		extensions: csv(process.env.PI_EMACS_EXTS),
-		extraNoise: csv(process.env.PI_EMACS_NOISE),
+		maxLinks: Number(process.env.PI_EMACS_MAX_LINKS ?? userConfig.maxLinks ?? 8) || 8,
+		extensions: envExts.length > 0 ? envExts : (userConfig.extensions ?? []),
+		extraNoise: envNoise.length > 0 ? envNoise : (userConfig.noise ?? []),
 	};
 }
 
@@ -286,13 +320,13 @@ class LinksBar extends Container {
 		const span = spans.find((s) => event.x >= s.start && event.x < s.end);
 		if (!span) return undefined;
 		const f = span.file;
-		if (shouldOpenInEmacs(f.path)) {
+		if (shouldOpenInEmacs(f.path, textExts())) {
 			void openInEmacs(f.path, f.line, f.col).then((ok) => {
 				if (!ok) this.onFail("emacsclient falló — ¿daemon de Emacs caído?");
 			});
 		} else {
-			const child = spawn("xdg-open", [f.path], { detached: true, stdio: "ignore" });
-			child.on("error", () => this.onFail("xdg-open falló al abrir"));
+			const child = spawn(externalOpener(), [f.path], { detached: true, stdio: "ignore" });
+			child.on("error", () => this.onFail(`${externalOpener()} falló al abrir`));
 			child.unref();
 		}
 		return { handled: true } as ReturnType<Container["handleMouse"]>;
@@ -308,6 +342,7 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 	// ---- lifecycle ----
 
 	pi.on("session_start", async (_e, ctx) => {
+		loadUserConfig();
 		cwdGlobal = ctx.sessionManager.getCwd();
 		sessionId = ctx.sessionManager.getSessionId();
 		artifactDir = join(homedir(), ".cache", "pi", "emacs-integration", sessionId.replace(/[^\w-]/g, "_"));

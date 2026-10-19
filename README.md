@@ -18,8 +18,26 @@ Puente entre [pi](https://github.com/earendil-works/pi-coding-agent) y Emacs (da
 | `PI_EMACS_MAX_LINKS` | `8` | Máx chips por tool result |
 | `PI_EMACS_EXTS` | (todas) | CSV de extensiones permitidas, p.ej. `ts,tsx,py` |
 | `PI_EMACS_NOISE` | — | CSV de prefijos extra a ignorar |
+| `PI_EMACS_OPENER` | `xdg-open` | Comando para archivos no-texto |
 
 Filtrado anti-ruido built-in: sesiones de pi, `~/.cache`, `/tmp`, `node_modules`.
+
+## Config de usuario
+
+`~/.pi/agent/extensions-config/emacs-integration.json` (los env de arriba tienen precedencia):
+
+```json
+{
+  "maxLinks": 8,
+  "extensions": [],
+  "noise": ["/ruta/ruidosa"],
+  "textExts": ["ts", "py", "md"],
+  "externalOpener": "xdg-open"
+}
+```
+
+- `textExts` **reemplaza** la lista built-in de extensiones que abren en Emacs; el resto va al `externalOpener`.
+- Sin extensión (`Makefile`, `Dockerfile`) siempre abre en Emacs.
 
 ## Requisitos
 

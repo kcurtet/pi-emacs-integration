@@ -143,12 +143,12 @@ export const TEXT_EXTS = new Set([
 	"patch", "diff", "gitignore", "gitattributes", "editorconfig", "lock",
 ]);
 
-/** ¿Abrir en Emacs (texto/código) o con xdg-open (binario/otro)? */
-export function shouldOpenInEmacs(pathname: string): boolean {
+/** ¿Abrir en Emacs (texto/código) o con el opener externo (binario/otro)? */
+export function shouldOpenInEmacs(pathname: string, textExts: Set<string> = TEXT_EXTS): boolean {
 	const parts = basename(pathname).toLowerCase().split(".");
 	// sin extensión → texto (scripts, Makefile, Dockerfile)
 	if (parts.length === 1) return true;
-	return TEXT_EXTS.has(parts[parts.length - 1]!);
+	return textExts.has(parts[parts.length - 1]!);
 }
 
 /** Argumentos emacsclient para abrir archivo en línea/columna. */
