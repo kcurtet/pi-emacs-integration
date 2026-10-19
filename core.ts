@@ -6,10 +6,11 @@ import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 
 export interface FileLink {
-	path: string; // absoluto
+	path: string; // absoluto (o URL si url=true)
 	line?: number;
 	col?: number;
 	op?: "created" | "edited";
+	url?: boolean;
 }
 
 export interface LinkConfig {
@@ -91,6 +92,32 @@ export function displayPath(pathname: string, cwd: string): string {
 	return segs.slice(-2).join("/");
 }
 
+/** URLs http(s) en un texto, sin puntuación colgante. */
+export function extractUrls(text: string, max = 4): string[] {
+	const raw = text.match(/https?:\/\/[^\s`'"|<>{}[\]()]+/g) ?? [];
+	const out: string[] = [];
+	const seen = new Set<string>();
+	for (const u of raw) {
+		const url = u.replace(/[,.;:!?)]+$/, "");
+		if (seen.has(url)) continue;
+		seen.add(url);
+		out.push(url);
+		if (out.length >= max) break;
+	}
+	return out;
+}
+
+/** URL corta para chip: host + path truncado. */
+export function displayUrl(url: string, maxLen = 60): string {
+	try {
+		const u = new URL(url);
+		const s = `${u.host}${u.pathname}`;
+		return s.length > maxLen ? `${s.slice(0, maxLen - 1)}…` : s;
+	} catch {
+		return url.slice(0, maxLen);
+	}
+}
+
 /** Fuzzy: substring en cualquier sitio, o subsecuencia sobre el basename. */
 export function fuzzyMatch(query: string, pathname: string): boolean {
 	const q = query.toLowerCase();
@@ -103,6 +130,25 @@ export function fuzzyMatch(query: string, pathname: string): boolean {
 		bi += 1;
 	}
 	return true;
+}
+
+/** Extensiones que abrimos en Emacs; el resto (pdf, png, mp4...) con xdg-open. */
+export const TEXT_EXTS = new Set([
+	"ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "json", "jsonc", "md", "mdx",
+	"txt", "py", "rs", "go", "c", "h", "cpp", "hpp", "cc", "java", "rb", "kt", "swift",
+	"sh", "bash", "fish", "zsh", "el", "elisp", "lisp", "clj", "ex", "exs", "erl", "lua",
+	"toml", "yaml", "yml", "ini", "cfg", "conf", "env", "css", "scss", "less", "html", "htm",
+	"xml", "sql", "graphql", "gql", "nix", "dhall", "zig", "nim", "v", "dart", "pl", "r",
+	"dockerfile", "makefile", "mk", "cmake", "gradle", "properties", "csv", "tsv", "log",
+	"patch", "diff", "gitignore", "gitattributes", "editorconfig", "lock",
+]);
+
+/** ¿Abrir en Emacs (texto/código) o con xdg-open (binario/otro)? */
+export function shouldOpenInEmacs(pathname: string): boolean {
+	const parts = basename(pathname).toLowerCase().split(".");
+	// sin extensión → texto (scripts, Makefile, Dockerfile)
+	if (parts.length === 1) return true;
+	return TEXT_EXTS.has(parts[parts.length - 1]!);
 }
 
 /** Argumentos emacsclient para abrir archivo en línea/columna. */

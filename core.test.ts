@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { extractFilePaths, isNoise, lineFor, displayPath, clientArgs, looksLikeFile, fuzzyMatch } from "./core.ts";
+import { extractFilePaths, isNoise, lineFor, displayPath, clientArgs, looksLikeFile, fuzzyMatch, shouldOpenInEmacs } from "./core.ts";
 
 function tmpProject(): string {
 	const dir = mkdtempSync(join(tmpdir(), "core-test-"));
@@ -80,6 +80,15 @@ test("clientArgs: con/sin posición", () => {
 	assert.deepEqual(clientArgs("/f.ts"), ["-n", "-c", "/f.ts"]);
 	assert.deepEqual(clientArgs("/f.ts", 10), ["-n", "-c", "+10", "/f.ts"]);
 	assert.deepEqual(clientArgs("/f.ts", 10, 3), ["-n", "-c", "+10:3", "/f.ts"]);
+});
+
+test("shouldOpenInEmacs: código sí, binarios no", () => {
+	assert.ok(shouldOpenInEmacs("/p/a.ts"));
+	assert.ok(shouldOpenInEmacs("/p/Makefile"));
+	assert.ok(shouldOpenInEmacs("/p/README.md"));
+	assert.ok(!shouldOpenInEmacs("/p/shot.png"));
+	assert.ok(!shouldOpenInEmacs("/p/doc.pdf"));
+	assert.ok(!shouldOpenInEmacs("/p/video.mp4"));
 });
 
 test("fuzzyMatch: substring y subsecuencia sobre basename", () => {
