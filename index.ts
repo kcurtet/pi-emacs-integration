@@ -425,6 +425,14 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 
 	pi.registerCommand("emacs", {
 		description: "Open file or folder in Emacs; fuzzy-matches session files if path doesn't exist",
+		getArgumentCompletions: (prefix) => {
+			const hits = fuzzyCandidates(prefix || "");
+			return hits.slice(0, 20).map((p) => ({
+				value: p,
+				label: displayPath(p, cwdGlobal),
+				description: "sesión",
+			}));
+		},
 		handler: async (args, ctx) => {
 			const arg = args?.trim() || undefined;
 			if (arg && !existsSync(resolve(cwdGlobal, arg))) {
