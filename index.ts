@@ -372,6 +372,7 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 	}
 
 	pi.on("tool_result", async (event) => {
+		if ((event as { isError?: boolean }).isError) return;
 		const texts: string[] = [];
 		for (const block of event.content ?? []) {
 			if (block.type === "text") texts.push(block.text);
