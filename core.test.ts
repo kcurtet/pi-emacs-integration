@@ -69,10 +69,11 @@ test("lineFor: línea y columna", () => {
 	assert.deepEqual(lineFor("/p/a.ts", "a.ts(42): algo"), { line: 42, col: undefined });
 });
 
-test("displayPath: relativa, ~, absoluta", () => {
+test("displayPath: relativa, corta fuera de cwd", () => {
 	assert.equal(displayPath("/repo/src/a.ts", "/repo"), "src/a.ts");
-	assert.equal(displayPath(`${process.env.HOME}/dev/x.ts`, "/otro"), "~/dev/x.ts");
+	assert.equal(displayPath(`${process.env.HOME}/dev/x.ts`, "/otro"), "dev/x.ts");
 	assert.equal(displayPath("/opt/x.ts", "/repo"), "/opt/x.ts");
+	assert.equal(displayPath("/a/b/c/d.ts", "/repo"), "c/d.ts");
 });
 
 test("clientArgs: con/sin posición", () => {

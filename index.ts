@@ -10,7 +10,7 @@
 //                     Config: PI_EMACS_MAX_LINKS, PI_EMACS_EXTS (csv), PI_EMACS_NOISE (csv rutas).
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
@@ -204,6 +204,25 @@ function firstChangedLine(diff: string): number | null {
 
 // ---- links clicables en el chat ----
 
+function opFor(toolName: string | undefined): FileLink["op"] {
+	return toolName === "write" ? "created" : toolName === "edit" ? "edited" : undefined;
+}
+
+/** Línea del texto editado: busca newText del primer edit en el archivo post-edición. */
+function editedLine(pathname: string, input: unknown): number | null {
+	const inp = input as { edits?: { newText?: string }[]; content?: string } | undefined;
+	const needle = inp?.edits?.[0]?.newText ?? inp?.content;
+	if (!needle) return null;
+	try {
+		const content = readFileSync(pathname, "utf8");
+		const idx = content.indexOf(needle);
+		if (idx === -1) return null;
+		return content.slice(0, idx).split("\n").length;
+	} catch {
+		return null;
+	}
+}
+
 function openInEmacs(file: string, line?: number, col?: number): Promise<boolean> {
 const args = clientArgs(file, line, col);
 return new Promise((res) => {
@@ -365,11 +384,13 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 		const paths = extractFilePaths(text, cwdGlobal, cfg).filter((p) => !isNoise(p, cfg.extraNoise));
 		// línea de error/aviso si el resultado la menciona: "file.ts:42"
 		const toolName = (event as { toolName?: string }).toolName;
-		const files: FileLink[] = paths.map((p) => ({
-			path: p,
-			...lineFor(p, text),
-			op: toolName === "write" ? "created" : toolName === "edit" ? "edited" : undefined,
-		}));
+		const files: FileLink[] = paths.map((p) => {
+			const mentioned = lineFor(p, text);
+			if (mentioned.line) return { path: p, ...mentioned, op: opFor(toolName) };
+			// edit/write: línea del texto insertado, buscándolo en el archivo
+			const line = editedLine(p, event.input);
+			return { path: p, line: line ?? undefined, op: opFor(toolName) };
+		});
 		pi.appendEntry(LINK_ENTRY, { files });
 	});
 
