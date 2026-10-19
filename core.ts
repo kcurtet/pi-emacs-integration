@@ -91,6 +91,20 @@ export function displayPath(pathname: string, cwd: string): string {
 	return segs.slice(-2).join("/");
 }
 
+/** Fuzzy: substring en cualquier sitio, o subsecuencia sobre el basename. */
+export function fuzzyMatch(query: string, pathname: string): boolean {
+	const q = query.toLowerCase();
+	if (pathname.toLowerCase().includes(q)) return true;
+	const base = basename(pathname).toLowerCase();
+	let bi = 0;
+	for (const ch of q) {
+		bi = base.indexOf(ch, bi);
+		if (bi === -1) return false;
+		bi += 1;
+	}
+	return true;
+}
+
 /** Argumentos emacsclient para abrir archivo en línea/columna. */
 export function clientArgs(file: string, line?: number, col?: number): string[] {
 	const pos = line ? (col ? `+${line}:${col}` : `+${line}`) : undefined;

@@ -19,6 +19,7 @@ import {
 	clientArgs,
 	displayPath,
 	extractFilePaths,
+	fuzzyMatch,
 	isNoise,
 	lineFor,
 	type FileLink,
@@ -280,6 +281,8 @@ class LinksBar extends Container {
 export default function emacsIntegration(pi: ExtensionAPI) {
 	let files: FileRec[] = [];
 	let sessionId = "unknown";
+	// último tool que chipeó cada archivo (dedupe suave consecutivo)
+	const lastChip = new Map<string, string | undefined>();
 
 	// ---- lifecycle ----
 
@@ -316,6 +319,14 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 	});
 
 	// ---- comandos ----
+
+	/** Fuzzy sobre archivos tocados/mencionados en la sesión. */
+	function fuzzyCandidates(q: string): string[] {
+		const cands = new Set<string>();
+		for (const f of files) cands.add(resolve(cwdGlobal, f.path));
+		for (const p of lastChip.keys()) cands.add(p);
+		return [...cands].filter((p) => fuzzyMatch(q, p));
+	}
 
 	async function openPath(ctx: ExtensionContext, arg?: string): Promise<void> {
 		const target = resolve(cwdGlobal, arg ?? ".");
@@ -385,14 +396,23 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 		const paths = extractFilePaths(text, cwdGlobal, cfg).filter((p) => !isNoise(p, cfg.extraNoise));
 		// línea de error/aviso si el resultado la menciona: "file.ts:42"
 		const toolName = (event as { toolName?: string }).toolName;
-		const files: FileLink[] = paths.map((p) => {
-			const mentioned = lineFor(p, text);
-			if (mentioned.line) return { path: p, ...mentioned, op: opFor(toolName) };
-			// edit/write: línea del texto insertado, buscándolo en el archivo
-			const line = editedLine(p, event.input);
-			return { path: p, line: line ?? undefined, op: opFor(toolName) };
-		});
-		pi.appendEntry(LINK_ENTRY, { files });
+		// dedupe suave: mismo archivo por el mismo tool consecutivo → 1 chip
+		const files: FileLink[] = paths
+			.filter((p) => lastChip.get(p) !== toolName)
+			.map((p) => {
+				lastChip.set(p, toolName);
+				const mentioned = lineFor(p, text);
+				if (mentioned.line) return { path: p, ...mentioned, op: opFor(toolName) };
+				// read con offset: saltar ahí
+				if (toolName === "read") {
+					const off = (event.input as { offset?: number } | undefined)?.offset;
+					if (off && off > 0) return { path: p, line: off, op: undefined };
+				}
+				// edit/write: línea del texto insertado, buscándolo en el archivo
+				const line = editedLine(p, event.input);
+				return { path: p, line: line ?? undefined, op: opFor(toolName) };
+			});
+		if (files.length > 0) pi.appendEntry(LINK_ENTRY, { files });
 	});
 
 	pi.registerEntryRenderer(LINK_ENTRY, (entry, _options, theme) => {
@@ -404,8 +424,26 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("emacs", {
-		description: "Open file or folder in Emacs (new frame, dired for folders)",
-		handler: async (args, ctx) => openPath(ctx, args?.trim() || undefined),
+		description: "Open file or folder in Emacs; fuzzy-matches session files if path doesn't exist",
+		handler: async (args, ctx) => {
+			const arg = args?.trim() || undefined;
+			if (arg && !existsSync(resolve(cwdGlobal, arg))) {
+				const hits = fuzzyCandidates(arg);
+			if (hits.length === 0) {
+				notify(ctx, `No existe: ${arg} (ni match fuzzy en archivos de la sesión)`, "error");
+				return;
+			}
+			const pick =
+				hits.length === 1
+					? hits[0]
+					: await ctx.ui.select("Abrir en Emacs", hits.map((h) => displayPath(h, cwdGlobal)));
+				if (pick === undefined) return;
+				const chosen = hits.length === 1 ? hits[0] : hits[hits.map((h) => displayPath(h, cwdGlobal)).indexOf(pick)];
+				await openPath(ctx, chosen);
+				return;
+			}
+			await openPath(ctx, arg);
+		},
 	});
 
 	pi.registerCommand("changes", {
