@@ -48,7 +48,8 @@ export function extractFilePaths(text: string, cwd: string, cfg: LinkConfig = DE
 	const out: string[] = [];
 	const seen = new Set<string>();
 	for (const raw of tokens) {
-		let candidate = raw.replace(/[,.;:!?]+$/, "");
+		// "a.ts:42:7" → "a.ts" (la línea se recupera con lineFor del texto completo)
+		let candidate = raw.replace(/[,.;:!?]+$/, "").replace(/:(\d+)(?::(\d+))?$/, "");
 		if (!candidate || candidate.length > 4096) continue;
 		if (candidate.startsWith("~")) candidate = join(homedir(), candidate.slice(1));
 		const base = basename(candidate);
@@ -75,8 +76,11 @@ export function lineFor(pathname: string, text: string): { line?: number; col?: 
 	const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const full = new RegExp(`${esc(pathname)}:(\\d+)(?::(\\d+))?`).exec(text);
 	if (full) return { line: Number(full[1]), col: full[2] ? Number(full[2]) : undefined };
-	const base = new RegExp(`(?:^|[^\\w/])${esc(basename(pathname))}:(\\d+)(?::(\\d+))?`).exec(text);
-	return base ? { line: Number(base[1]), col: base[2] ? Number(base[2]) : undefined } : {};
+	const base = new RegExp(`(?:^|[^\\w])${esc(basename(pathname))}:(\\d+)(?::(\\d+))?`).exec(text);
+	if (base) return { line: Number(base[1]), col: base[2] ? Number(base[2]) : undefined };
+	// formato compilador: "file.ts(42,7): error" o "file.ts(42)"
+	const paren = new RegExp(`(?:^|[^\\w])${esc(basename(pathname))}\\((\\d+)[,:]?(\\d+)?\\)`).exec(text);
+	return paren ? { line: Number(paren[1]), col: paren[2] ? Number(paren[2]) : undefined } : {};
 }
 
 /** Ruta para mostrar: relativa a cwd si está dentro, ~ si está en home, absoluta si no. */

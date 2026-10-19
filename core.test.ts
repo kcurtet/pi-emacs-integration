@@ -38,6 +38,12 @@ test("extract: maxLinks", () => {
 	assert.equal(out.length, 1);
 });
 
+test("extract: token con línea incorporada", () => {
+	const dir = tmpProject();
+	writeFileSync(join(dir, "err.log"), "x");
+	assert.deepEqual(extractFilePaths("fallo en err.log:42 mira", dir), [join(dir, "err.log")]);
+});
+
 test("extract: filtro por extensión", () => {
 	const dir = tmpProject();
 	const out = extractFilePaths("a.txt sub/b.md", dir, { maxLinks: 8, extensions: ["md"], extraNoise: [] });
@@ -58,6 +64,9 @@ test("lineFor: línea y columna", () => {
 	assert.deepEqual(lineFor("/p/a.txt", t), { line: 42, col: 7 });
 	assert.deepEqual(lineFor("/p/b.md", t), { line: 3, col: undefined });
 	assert.deepEqual(lineFor("/p/c.txt", t), {});
+	// formato compilador
+	assert.deepEqual(lineFor("/p/a.ts", "src/a.ts(42,7): error TS2322"), { line: 42, col: 7 });
+	assert.deepEqual(lineFor("/p/a.ts", "a.ts(42): algo"), { line: 42, col: undefined });
 });
 
 test("displayPath: relativa, ~, absoluta", () => {
