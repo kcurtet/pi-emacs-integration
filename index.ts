@@ -231,12 +231,15 @@ class LinksBar extends Container {
 		for (const f of files) {
 			const shown = displayPath(f.path, cwdGlobal);
 			const text = f.line ? `${shown}:${f.line}` : shown;
-			// icono por operación: + creado, ✎ editado
-			const icon = f.op === "created" ? " +" : f.op === "edited" ? " ✎" : " ⏏";
-			const plain = `${icon} ${text}`;
+			const plain = ` open ${text}`;
 			this.spans.push({ start: x, end: x + plain.length, file: f });
 			chips.push(
-				new Text(theme.style(icon, { fg: "accent", bold: true }) + theme.fg("text", ` ${text}`), 0, 0),
+				new Text(
+					theme.fg("muted", "open ") +
+						theme.style(text, { fg: { kind: "rgb", r: 110, g: 168, b: 254 }, underline: true }),
+					0,
+					0,
+				),
 			);
 			x += plain.length + GAP;
 		}
