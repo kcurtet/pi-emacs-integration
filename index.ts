@@ -231,11 +231,13 @@ class LinksBar extends Container {
 		for (const f of files) {
 			const shown = displayPath(f.path, cwdGlobal);
 			const text = f.line ? `${shown}:${f.line}` : shown;
-			const plain = ` open ${text}`;
+			const plain = `[open] ${text}`;
 			this.spans.push({ start: x, end: x + plain.length, file: f });
 			chips.push(
 				new Text(
-					theme.fg("muted", "open ") +
+					theme.fg("muted", "[") +
+						theme.fg("muted", "open") +
+						theme.fg("muted", "] ") +
 						theme.style(text, { fg: { kind: "rgb", r: 110, g: 168, b: 254 }, underline: true }),
 					0,
 					0,
