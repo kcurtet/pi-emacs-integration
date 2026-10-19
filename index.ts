@@ -336,7 +336,9 @@ class LinksBar extends Container {
 export default function emacsIntegration(pi: ExtensionAPI) {
 	let files: FileRec[] = [];
 	let sessionId = "unknown";
-	// último tool que chipeó cada archivo (dedupe suave consecutivo)
+	// ventana de archivos chipeados recientemente (dedupe)
+	const recentChips: string[] = [];
+	// último tool que chipeó cada archivo (candidatos fuzzy)
 	const lastChip = new Map<string, string | undefined>();
 
 	// ---- lifecycle ----
@@ -452,11 +454,14 @@ export default function emacsIntegration(pi: ExtensionAPI) {
 		const paths = extractFilePaths(text, cwdGlobal, cfg).filter((p) => !isNoise(p, cfg.extraNoise));
 		// línea de error/aviso si el resultado la menciona: "file.ts:42"
 		const toolName = (event as { toolName?: string }).toolName;
-		// dedupe suave: mismo archivo por el mismo tool consecutivo → 1 chip
+		// dedupe: archivo chipeado en los últimos 8 chips no se repite,
+		// salvo edit/write (la línea nueva importa)
+		const isMutation = toolName === "edit" || toolName === "write";
 		const files: FileLink[] = paths
-			.filter((p) => lastChip.get(p) !== toolName)
+			.filter((p) => isMutation || !recentChips.includes(p))
 			.map((p) => {
-				lastChip.set(p, toolName);
+				recentChips.push(p);
+				while (recentChips.length > 8) recentChips.shift();
 				const mentioned = lineFor(p, text);
 				if (mentioned.line) return { path: p, ...mentioned, op: opFor(toolName) };
 				// read con offset: saltar ahí
